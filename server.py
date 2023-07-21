@@ -24,6 +24,7 @@ class Server:
         self.ip_lider = ""
         self.port_lider = 0
         self.hash_table: list[HashTable] = []
+        self.server_ports = [10097, 10098, 10099]
 
         #Creation of thread connection that listens to other servers
         self.listen_servers = Thread(target=self.listen_servers)
@@ -35,6 +36,8 @@ class Server:
         self.ip_lider = input("Digite o ip do lider: ")
         self.port_lider = int(input("Digite a porta do lider: "))
         self.socket_connection()
+        for i in range(3):
+            self.connect_replication_socket('', self.server_ports[i])
         self.thread()
 
     def socket_connection(self):
@@ -45,11 +48,11 @@ class Server:
     def thread(self):
         """ Start connection with thread """
         while True:
-            connection, addr = self.socket_server.accept()
-            thread = Thread(target=self.process_message, args=(connection))
+            connection, address = self.socket_server.accept()
+            thread = Thread(target=self.process_message, args=(connection, address))
             thread.start()
 
-    def process_message(self, socket_server: socket):
+    def process_message(self, socket_server: socket, address: tuple):
         """ Process message based on PUT a (key, value) in the server or GET a value based on its key """
         while True:
             # Receive request from the client
@@ -60,29 +63,67 @@ class Server:
                 #Performs the PUT request
                 case "PUT":
                     if (self.ip == self.ip_lider):
-                        self.add_or_replace_hash_table(request["key"], request["timestamp"], request["value"])
-                        self.replicate_in_all_servers()
-                        socket_server.send("PUT_OK".encode())
+                        print(f'Cliente {address} PUT key:{request["key"]} value:{request["value"]}')
+                        new_timestamp = self.add_or_replace_hash_table(request["key"], request["value"])
+                        server_replicated = self.replicate_in_all_servers(request["key"], request["value"], new_timestamp)
+                        if(server_replicated):
+                            socket_server.send(f'PUT_OK: {new_timestamp}'.encode())
+                            print(f'Enviando PUT_OK ao Cliente {address} da key:{request["key"]} ts:{new_timestamp}')
+                    else:
+                        print(f'Encaminhando PUT key:{request["key"]} value:{request["value"]}')
+                        self.connect_and_send_message(self.ip_lider, self.port_lider, request)
 
+                case "GET":
+                    item = self.search_by_key(request["key"])
 
-    def add_or_replace_hash_table(self, key: int, timestamp: int, value: int):
-        """ TODO """
-        # Verify if key already exists on the list
+                    if(item.timestamp < request["timestamp"]):
+                        socket_server.send("TRY_OTHER_SERVER_OR_LATER".encode())
+                    else:
+                        valor_and_timestamp = {"value": item.value, "timestamp": item.timestamp}
+                        socket_server.send(json.dumps(valor_and_timestamp).encode())
+                    
+                    print(f'Cliente {address} GET key:{request["key"]} ts:{request["timestamp"]}. Meu ts é {item.timestamp},' +
+                          f'portanto devolvendo {item if item else "TRY_OTHER_SERVER_OR_LATER"}')
+
+    def search_by_key(self, key: int):
+        """ Search item on hash table by key """
         for item in self.hash_table:
             if item.key == key:
-                # Replace the object
-                item.timestamp = timestamp
-                item.value = value
-                return
+                return item
+            
+        return
+
+
+    def add_or_replace_hash_table(self, key: int, value: int):
+        """ TODO """
+        # Verify if key already exists on the list
+        item_found = self.search_by_key(key)
+
+        if(item_found):
+            # Replace the object
+            item_found.timestamp += 1
+            item_found.value = value
+            return item_found.timestamp
 
         # Create new object and add to the list
-        new_hash_table = HashTable(key, timestamp, value)
+        new_hash_table = HashTable(key, 0, value)
         self.hash_table.append(new_hash_table)
+        return 0
 
-    def replicate_in_all_servers(self):
+    def replicate_in_all_servers(self, key, value, timestamp) -> bool:
         """ Send replication to other server """
-        message_to_server = {"type": "REPLICATION", "hash_table": self.hash_table}
-        self.socket_request_replication.sendall(json.dumps(message_to_server).encode())
+        message_to_server = {"type": "REPLICATION", "hash_table": self.hash_table, "key": key, "value": value, "timestamp": timestamp}
+        for i in range(3):
+            response = self.connect_and_send_message('', self.server_ports[i], message_to_server)
+            if response != 'REPLICATION_OK':
+                return False
+        return True
+    
+    def connect_and_send_message(self, ip: str, port: int, message: str):
+        """ Connect and send message """
+        self.socket_request_replication.connect((ip, port))
+        self.socket_request_replication.sendall(json.dumps(message).encode())
+        return self.socket_request_replication.recv(2048)
 
     def listen_server(self):
         """ Listen for connections from other servers """
@@ -92,8 +133,16 @@ class Server:
 
             if request["type"] ==  "REPLICATION":
                 self.hash_table = request["hash_table"]
+                connection.send("REPLICATION_OK".encode())
+                print(f'REPLICATION key:{request["key"]} value:{request["value"]} ts:{request["timestamp"]}')
 
             connection.close()
+
+    def connect_replication_socket(self, ip: str, port: int) -> str:
+        """ Connect to listen replication requests """
+        self.socket_replication.bind((ip, port))
+        self.socket_replication.listen(5)
+        self.listen_servers.start()
 
 server = Server()
 server.start()
