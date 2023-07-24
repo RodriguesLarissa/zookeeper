@@ -10,7 +10,7 @@ class Client:
         self.socket_server = socket.socket()
         self.ips_server = []
         self.ports_server = []
-        self.timestamp = 0
+        self.timestamp = []
 
     def initialization(self):
         """ Function collect server informations """
@@ -37,13 +37,23 @@ class Client:
         self.socket_server = socket.socket()
         key = str(input(("Digite a key do valor que está procurando: ")))
         ip, port = self.connect_to_server()
-        message_to_server = {"type": "GET", "key": key, "timestamp": self.timestamp}
+        last_timestamp = self.search_item_and_timestamp(key)["timestamp"] if self.search_item_and_timestamp(key) else 0
+        if last_timestamp == 0:
+            self.add_or_update_item_timestamp(key, last_timestamp)
+
+        message_to_server = {"type": "GET", "key": key, "timestamp": last_timestamp}
         server_message = self.send_message_to_server(self.socket_server, message_to_server)
         if (server_message != "TRY_OTHER_SERVER_OR_LATER"):
             message_to_json = json.loads(server_message)
             print(f'GET key: {key} value: {message_to_json["value"]} obtido do servidor {ip}:{port}, meu timestamp ' + 
-                f'{self.timestamp} e do servidor {message_to_json["timestamp"]}')
+                f'{last_timestamp} e do servidor {message_to_json["timestamp"]}')
         self.socket_server.close()
+
+    def search_item_and_timestamp(self, key: str) -> dict:
+        """ Search timestamp by key """
+        for item in self.timestamp:
+            if item["key"] == key:
+                return item
 
     def put(self):
         """ Insert value to the hash table """
@@ -54,9 +64,20 @@ class Client:
         message_to_server = {"type": "PUT", "key": key, "value": value}
         server_message = self.send_message_to_server(self.socket_server, message_to_server)
         if ('PUT_OK' in server_message):
-            print(f'PUT_OK key: {key} value {value} timestamp {server_message.split(": ")[1].strip()} ' +
+            new_timestamp = server_message.split(": ")[1].strip()
+            self.add_or_update_item_timestamp(key, new_timestamp)
+            print(f'PUT_OK key: {key} value {value} timestamp {new_timestamp} ' +
                 f'realizada no servidor {ip}:{port}')
         self.socket_server.close()
+
+    def add_or_update_item_timestamp(self, key: str, timestamp: int):
+        """ Add or update item with their timestamp """
+        item = self.search_item_and_timestamp(key)
+
+        if(item):
+            item["timestamp"] = timestamp
+        else:
+            self.timestamp.append({"key": key, "timestamp": timestamp})
 
     def start(self):
         """ Function with interactive menu to start the funcionality """

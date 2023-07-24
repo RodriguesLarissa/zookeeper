@@ -62,7 +62,10 @@ class Server:
             case "GET":
                 item = self.search_by_key(request["key"])
 
-                if(item["timestamp"] < request["timestamp"]):
+                if(not item):
+                    item = {"value": None, "timestamp": 0}
+
+                if(item["timestamp"] < int(request["timestamp"])):
                     socket_server.send("TRY_OTHER_SERVER_OR_LATER".encode())
                 else:
                     valor_and_timestamp = {"value": item["value"], "timestamp": item["timestamp"]}
@@ -78,7 +81,7 @@ class Server:
 
         socket_server.close()
 
-    def search_by_key(self, key: int):
+    def search_by_key(self, key: int) -> dict:
         """ Search item on hash table by key """
         for item in self.hash_table:
             if item["key"] == key:
@@ -92,9 +95,9 @@ class Server:
 
         if(item_found):
             # Replace the object
-            item_found.timestamp += 1
-            item_found.value = value
-            return item_found.timestamp
+            item_found["timestamp"] += 1
+            item_found["value"] = value
+            return item_found["timestamp"]
 
         # Create new object and add to the list
         new_hash_table = {"key": key, "timestamp": 0, "value": value}
