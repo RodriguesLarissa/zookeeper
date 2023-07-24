@@ -15,8 +15,8 @@ class Client:
     def initialization(self):
         """ Function collect server informations """
         for i in range(3):
-            self.ips_server[i] = input(f"Digite o ip do servidor {i}: ")
-            self.ports_server[i] = int(input(f"Digite a porta do servidor {i}: "))
+            self.ips_server.append(input(f"Digite o ip do servidor {i}: "))
+            self.ports_server.append(int(input(f"Digite a porta do servidor {i}: ")))
 
     def connect_to_server(self) -> tuple[str, int]:
         """ Connect with a random server """
@@ -34,24 +34,27 @@ class Client:
 
     def get(self):
         """ Get value from hash table """
+        self.socket_server = socket.socket()
         key = str(input(("Digite a key do valor que está procurando: ")))
         ip, port = self.connect_to_server()
         message_to_server = {"type": "GET", "key": key, "timestamp": self.timestamp}
         server_message = self.send_message_to_server(self.socket_server, message_to_server)
         if (server_message != "TRY_OTHER_SERVER_OR_LATER"):
-            print(f'GET key: {key} value: {server_message["value"]} obtido do servidor {ip}:{port}, meu timestamp' + 
-                f'{self.timestamp} e do servidor {server_message["timestamp"]}”')
+            message_to_json = json.loads(server_message)
+            print(f'GET key: {key} value: {message_to_json["value"]} obtido do servidor {ip}:{port}, meu timestamp ' + 
+                f'{self.timestamp} e do servidor {message_to_json["timestamp"]}')
         self.socket_server.close()
 
     def put(self):
         """ Insert value to the hash table """
+        self.socket_server = socket.socket()
         key = str(input(("Digite a key: ")))
         value = str(input(("Digite o value: ")))
         ip, port = self.connect_to_server()
         message_to_server = {"type": "PUT", "key": key, "value": value}
         server_message = self.send_message_to_server(self.socket_server, message_to_server)
         if ('PUT_OK' in server_message):
-            print(f'PUT_OK key: {key} value {value} timestamp {server_message.split(": ")[1].strip()}' +
+            print(f'PUT_OK key: {key} value {value} timestamp {server_message.split(": ")[1].strip()} ' +
                 f'realizada no servidor {ip}:{port}')
         self.socket_server.close()
 
