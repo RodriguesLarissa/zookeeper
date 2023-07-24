@@ -1,6 +1,8 @@
 import socket
 import json
+import pickle
 from threading import Thread
+from message import Message
 
 class Server:
     """ Creation of server class """
@@ -41,43 +43,43 @@ class Server:
     def process_message(self, socket_server: socket, address: tuple):
         """ Process message based on PUT a (key, value) in the server or GET a value based on its key """
         # Receive request from the client
-        request = json.loads(socket_server.recv(4096).decode())
+        request = pickle.loads(socket_server.recv(4096))
 
         # Check type of request
-        match request["type"]:
+        match request.type:
             #Performs the PUT request
             case "PUT":
                 if (self.port == self.port_lider):
-                    print(f'Cliente {address} PUT key:{request["key"]} value:{request["value"]}')
-                    new_timestamp = self.add_or_replace_hash_table(request["key"], request["value"])
-                    server_replicated = self.replicate_in_all_servers(request["key"], request["value"], new_timestamp)
+                    print(f'Cliente {address} PUT key:{request.key} value:{request.value}')
+                    new_timestamp = self.add_or_replace_hash_table(request.key, request.value)
+                    server_replicated = self.replicate_in_all_servers(request.key, request.value, new_timestamp)
                     if(server_replicated):
                         socket_server.send(f'PUT_OK: {new_timestamp}'.encode())
-                        print(f'Enviando PUT_OK ao Cliente {address} da key:{request["key"]} ts:{new_timestamp}')
+                        print(f'Enviando PUT_OK ao Cliente {address} da key:{request.key} ts:{new_timestamp}')
                 else:
-                    print(f'Encaminhando PUT key:{request["key"]} value:{request["value"]}')
+                    print(f'Encaminhando PUT key:{request.key} value:{request.value}')
                     return_from_server = self.connect_and_send_message(self.ip_lider, self.port_lider, request)
                     socket_server.send(return_from_server)
 
             case "GET":
-                item = self.search_by_key(request["key"])
+                item = self.search_by_key(request.key)
 
                 if(not item):
                     item = {"value": None, "timestamp": 0}
 
-                if(item["timestamp"] < int(request["timestamp"])):
+                if(item["timestamp"] < int(request.timestamp)):
                     socket_server.send("TRY_OTHER_SERVER_OR_LATER".encode())
                 else:
                     valor_and_timestamp = {"value": item["value"], "timestamp": item["timestamp"]}
                     socket_server.send(json.dumps(valor_and_timestamp).encode())
                 
-                print(f'Cliente {address} GET key:{request["key"]} ts:{request["timestamp"]}. Meu ts é {item["timestamp"]},' +
+                print(f'Cliente {address} GET key:{request.key} ts:{request.timestamp}. Meu ts é {item["timestamp"]},' +
                         f'portanto devolvendo {item if item else "TRY_OTHER_SERVER_OR_LATER"}')
 
             case "REPLICATION":
-                self.hash_table = request["hash_table"]
+                self.hash_table = request.hash_table
                 socket_server.send("REPLICATION_OK".encode())
-                print(f'REPLICATION key:{request["key"]} value:{request["value"]} ts:{request["timestamp"]}')
+                print(f'REPLICATION key:{request.key} value:{request.value} ts:{request.timestamp}')
 
         socket_server.close()
 
@@ -106,7 +108,7 @@ class Server:
 
     def replicate_in_all_servers(self, key, value, timestamp) -> bool:
         """ Send replication to other server """
-        message_to_server = {"type": "REPLICATION", "hash_table": self.hash_table, "key": key, "value": value, "timestamp": timestamp}
+        message_to_server = Message("REPLICATION", key, timestamp, value, self.hash_table)
         for i in range(3):
             if (self.server_ports[i] != self.port):
                 response = self.connect_and_send_message('', self.server_ports[i], message_to_server)
@@ -118,7 +120,7 @@ class Server:
         """ Connect and send message """
         socket_request_replication = socket.socket()
         socket_request_replication.connect((ip, port))
-        socket_request_replication.sendall(json.dumps(message).encode())
+        socket_request_replication.sendall(pickle.dumps(message))
         return socket_request_replication.recv(2048)
 
 server = Server()

@@ -1,6 +1,8 @@
 import socket
 import json
 import random
+import pickle
+from message import Message
 
 class Client:
     """ Creation of client class """
@@ -29,7 +31,7 @@ class Client:
 
     def send_message_to_server(self, socket_type: socket, message_to_server: dict):
         """ Send message to server using sockets """    
-        socket_type.sendall(json.dumps(message_to_server).encode())
+        socket_type.sendall(pickle.dumps(message_to_server))
         return socket_type.recv(2048).decode()
 
     def get(self):
@@ -41,7 +43,7 @@ class Client:
         if last_timestamp == 0:
             self.add_or_update_item_timestamp(key, last_timestamp)
 
-        message_to_server = {"type": "GET", "key": key, "timestamp": last_timestamp}
+        message_to_server = Message("GET", key, last_timestamp)
         server_message = self.send_message_to_server(self.socket_server, message_to_server)
         if (server_message != "TRY_OTHER_SERVER_OR_LATER"):
             message_to_json = json.loads(server_message)
@@ -61,7 +63,7 @@ class Client:
         key = str(input(("Digite a key: ")))
         value = str(input(("Digite o value: ")))
         ip, port = self.connect_to_server()
-        message_to_server = {"type": "PUT", "key": key, "value": value}
+        message_to_server = Message("PUT", key, 0, value)
         server_message = self.send_message_to_server(self.socket_server, message_to_server)
         if ('PUT_OK' in server_message):
             new_timestamp = server_message.split(": ")[1].strip()
