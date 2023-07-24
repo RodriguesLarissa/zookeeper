@@ -47,8 +47,6 @@ class Client:
         ip, port = self.connect_to_random_server()
 
         last_timestamp = self.search_item_and_timestamp(key)["timestamp"] if self.search_item_and_timestamp(key) else 0
-        if last_timestamp == 0:
-            self.add_or_update_item_timestamp(key, last_timestamp)
 
         # Send to server the key and the last timestamp from the key saved in this client
         message_to_server = Message("GET", key, last_timestamp)
@@ -57,6 +55,10 @@ class Client:
             message_to_json = json.loads(server_message)
             print(f'GET key: {key} value: {message_to_json["value"]} obtido do servidor {ip}:{port}, meu timestamp ' + 
                 f'{last_timestamp} e do servidor {message_to_json["timestamp"]}')
+            
+            if last_timestamp == 0:
+                self.add_or_update_item_timestamp(key, last_timestamp)
+                
         self.socket_server.close()
 
     def search_item_and_timestamp(self, key: str) -> dict:
