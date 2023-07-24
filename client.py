@@ -15,12 +15,14 @@ class Client:
         self.timestamp = []
 
     def initialization(self):
-        """ Function collect server informations """
+        """ Function to collect server informations 
+            Collect the ip and port of three servers
+        """
         for i in range(3):
             self.ips_server.append(input(f"Digite o ip do servidor {i}: "))
             self.ports_server.append(int(input(f"Digite a porta do servidor {i}: ")))
 
-    def connect_to_server(self) -> tuple[str, int]:
+    def connect_to_random_server(self) -> tuple[str, int]:
         """ Connect with a random server """
         # Choose server to connect
         random_index = random.choice([0, 1, 2])
@@ -37,12 +39,18 @@ class Client:
     def get(self):
         """ Get value from hash table """
         self.socket_server = socket.socket()
+
+        # Capture the key to be search
         key = str(input(("Digite a key do valor que está procurando: ")))
-        ip, port = self.connect_to_server()
+
+        # Connect to a random server
+        ip, port = self.connect_to_random_server()
+
         last_timestamp = self.search_item_and_timestamp(key)["timestamp"] if self.search_item_and_timestamp(key) else 0
         if last_timestamp == 0:
             self.add_or_update_item_timestamp(key, last_timestamp)
 
+        # Send to server the key and the last timestamp from the key saved in this client
         message_to_server = Message("GET", key, last_timestamp)
         server_message = self.send_message_to_server(self.socket_server, message_to_server)
         if (server_message != "TRY_OTHER_SERVER_OR_LATER"):
@@ -60,10 +68,16 @@ class Client:
     def put(self):
         """ Insert value to the hash table """
         self.socket_server = socket.socket()
+
+        # Collect key and value
         key = str(input(("Digite a key: ")))
         value = str(input(("Digite o value: ")))
-        ip, port = self.connect_to_server()
+
+        # Connect to a random server
+        ip, port = self.connect_to_random_server()
         message_to_server = Message("PUT", key, 0, value)
+
+        # Receives confirmation of put with the timestamp of the server
         server_message = self.send_message_to_server(self.socket_server, message_to_server)
         if ('PUT_OK' in server_message):
             new_timestamp = server_message.split(": ")[1].strip()
