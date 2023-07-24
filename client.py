@@ -57,8 +57,8 @@ class Client:
                 f'{last_timestamp} e do servidor {message_to_json["timestamp"]}')
             
             if last_timestamp == 0:
-                self.add_or_update_item_timestamp(key, last_timestamp)
-                
+                self.add_or_update_item_timestamp(key, message_to_json["timestamp"])
+
         self.socket_server.close()
 
     def search_item_and_timestamp(self, key: str) -> dict:
@@ -74,10 +74,11 @@ class Client:
         # Collect key and value
         key = str(input(("Digite a key: ")))
         value = str(input(("Digite o value: ")))
+        last_timestamp = self.search_item_and_timestamp(key)["timestamp"] if self.search_item_and_timestamp(key) else 0
 
         # Connect to a random server
         ip, port = self.connect_to_random_server()
-        message_to_server = Message("PUT", key, 0, value)
+        message_to_server = Message("PUT", key, last_timestamp, value)
 
         # Receives confirmation of put with the timestamp of the server
         server_message = self.send_message_to_server(self.socket_server, message_to_server)
